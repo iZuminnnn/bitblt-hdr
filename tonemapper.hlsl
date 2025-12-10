@@ -100,11 +100,10 @@ void main(uint3 tid : SV_DispatchThreadID)
 	if (is_hdr == 1)
 	{
 		// Với màn hình 400 nits, white_level thường ~80-200
-		// Giảm divisor để giữ sáng hơn
 		float sdr_ratio = white_level / 80.0;
 		
-		// Clamp ratio để tránh quá tối - max divisor = 1.5 (thay vì 2.5+)
-		sdr_ratio = min(sdr_ratio, 1.5);
+		// Không giới hạn ratio quá chặt để tránh over-bright
+		sdr_ratio = max(sdr_ratio, 1.0);
 		
 		float3 input_color = clamp(src_color, 0, 10000) / sdr_ratio;
 		float3 linear_color = bt2020_inv_gamma(input_color);
@@ -116,12 +115,17 @@ void main(uint3 tid : SV_DispatchThreadID)
 		float neutral_luma = rgb_to_luma(neutral_result);
 		float3 neutral_color = neutral_result / max(neutral_luma, 0.001);
 
-		// Blend với ngưỡng thấp hơn
-		linear_color = lerp(linear_result, neutral_color * linear_luma, step(0.5, linear_luma));
+		// Blend với ngưỡng cao hơn để giữ màu gốc nhiều hơn
+		linear_color = lerp(linear_result, neutral_color * linear_luma, step(0.85, linear_luma));
 		
-		// Boost brightness cuối cùng cho màn hình độ sáng thấp
-		float brightness_boost = 1.0 + (1.0 - saturate(white_level / 200.0)) * 0.3;
-		linear_color *= brightness_boost;
+		// Tăng contrast để tránh washed out
+		float contrast = 1.15;
+		linear_color = (linear_color - 0.5) * contrast + 0.5;
+		
+		// Tăng saturation để giữ màu đậm
+		float luma = rgb_to_luma(linear_color);
+		float saturation_boost = 1.2;
+		linear_color = lerp(luma.xxx, linear_color, saturation_boost);
 		
 		// Đảm bảo output trong range [0, 1]
 		linear_color = saturate(linear_color);
