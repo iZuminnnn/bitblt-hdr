@@ -99,7 +99,16 @@ void main(uint3 tid : SV_DispatchThreadID)
 	
 	if (is_hdr == 1)
 	{
+		// Boost factor để bù đắp cho màn hình độ sáng thấp (< 600 nits)
+		// Với màn hình 400 nits, white_level thường khoảng 80-120
+		float boost = saturate(200.0 / max(white_level, 80.0));
+		boost = lerp(1.0, boost, 0.5); // Áp dụng 50% boost để tránh over-bright
+		
 		float3 input_color = clamp(src_color, 0, 10000) / (white_level / 80);
+		
+		// Áp dụng boost để nâng sáng
+		input_color *= boost;
+		
 		float3 linear_color = bt2020_inv_gamma(input_color);
 
 		float3 linear_result = linear_tonemap(linear_color);
@@ -107,9 +116,13 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 		float linear_luma = rgb_to_luma(linear_result);
 		float neutral_luma = rgb_to_luma(neutral_result);
-		float3 neutral_color = neutral_result / neutral_luma;
+		float3 neutral_color = neutral_result / max(neutral_luma, 0.001);
 
-		linear_color = lerp(linear_result, neutral_color * linear_luma, step(0.8, linear_luma));
+		// Giảm ngưỡng blend xuống 0.6 để bảo toàn highlight tốt hơn
+		linear_color = lerp(linear_result, neutral_color * linear_luma, step(0.6, linear_luma));
+		
+		// Đảm bảo output trong range [0, 1]
+		linear_color = saturate(linear_color);
 
 		dest[dest_pos] = float4(linear_color, 1.0);
 	}
