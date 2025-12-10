@@ -118,14 +118,8 @@ void main(uint3 tid : SV_DispatchThreadID)
 		// Blend với ngưỡng cao hơn để giữ màu gốc nhiều hơn
 		linear_color = lerp(linear_result, neutral_color * linear_luma, step(0.85, linear_luma));
 		
-		// Tăng contrast để tránh washed out
-		float contrast = 1.15;
-		linear_color = (linear_color - 0.5) * contrast + 0.5;
-		
-		// Tăng saturation để giữ màu đậm
-		float luma = rgb_to_luma(linear_color);
-		float saturation_boost = 1.2;
-		linear_color = lerp(luma.xxx, linear_color, saturation_boost);
+		// Boost brightness để bù đắp cho sdr_ratio
+		linear_color *= 1.25;
 		
 		// Đảm bảo output trong range [0, 1]
 		linear_color = saturate(linear_color);
